@@ -13,14 +13,15 @@ end
 
 local Scroll = 0
 
-local function profileopen(self, mc)
+--Temp fix for no NDB found issue
+--[[local function profileopen(self, mc)
 	if mc == MOUSE_LEFT then
 		local player = self.Player
 		if player:IsValid() then
 			NDB.GeneralPlayerMenu(player, true)
 		end
 	end
-end
+end]]--
 
 local colbox = Color(40, 40, 40, 255)
 local function emptypaint(self)
@@ -96,7 +97,8 @@ function GM:ScoreboardRefresh(pScoreBoard)
 		Panel:SetMouseInputEnabled(true)
 		Panel.Player = pl
 		Panel.Paint = emtptypaint
-		Panel.OnMousePressed = profileopen
+		--Temp fix for no NDB found issue
+		--Panel.OnMousePressed = profileopen
 
 		if pl:IsValid() then
 			local avatar = vgui.Create("AvatarImage", Panel)
