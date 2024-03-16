@@ -20,7 +20,7 @@ end
 
 function ENT:OnRemove()
 	local owner = self:GetOwner()
-	if owner:IsValid() and owner[self:GetClass()] == self then
+	if owner:IsValid() then
 		owner[self:GetClass()] = nil
 	end
 end

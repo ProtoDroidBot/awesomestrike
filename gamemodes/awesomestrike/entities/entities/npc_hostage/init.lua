@@ -3,11 +3,8 @@ AddCSLuaFile("shared.lua")
 
 include("shared.lua")
 
---local schdIdle = ai_schedule.New()
---schdIdle:EngTask("TASK_WAIT", 1)
-
 function ENT:Initialize()
-	self:SetModel("models/Characters/Hostage_01.mdl")
+	self:SetModel("models/Characters/Hostage_0"..math.random(1,4)..".mdl")
 
 	self:SetHullType(HULL_HUMAN)
 	self:SetHullSizeNormal()
@@ -15,99 +12,144 @@ function ENT:Initialize()
 	self:SetSolid(SOLID_BBOX)
 	self:SetMoveType(MOVETYPE_STEP)
 
-	self:CapabilitiesAdd(bit.bor(CAP_MOVE_GROUND, CAP_MOVE_JUMP, CAP_MOVE_SHOOT, CAP_USE, CAP_AUTO_DOORS, CAP_OPEN_DOORS, CAP_TURN_HEAD, CAP_ANIMATEDFACE, CAP_FRIENDLY_DMG_IMMUNE))
+	self:CapabilitiesAdd(CAP_MOVE_GROUND | CAP_MOVE_JUMP | CAP_MOVE_CLIMB | CAP_MOVE_SHOOT | CAP_USE | CAP_AUTO_DOORS | CAP_OPEN_DOORS | CAP_TURN_HEAD | CAP_ANIMATEDFACE | CAP_USE_SHOT_REGULATOR | CAP_FRIENDLY_DMG_IMMUNE | CAP_DUCK | CAP_AIM_GUN)
 
 	self:SetMaxYawSpeed(5000)
 
+	self:SetHealth(150)
 	self:SetUseType(SIMPLE_USE)
 	self.NextPlayerUse = 0
+end
 
-	self:SetCollisionGroup(COLLISION_GROUP_DEBRIS_TRIGGER)
+local schdEscort = ai_schedule.New()
+schdEscort:AddTask("CheckEscortDead")
+schdEscort:EngTask("TASK_GET_PATH_TO_TARGET", 0)
+schdEscort:EngTask("TASK_RUN_PATH_TIMED", 0.1)
+--schdEscort:EngTask("TASK_WAIT", 0.1)
+schdEscort:AddTask("CheckEscortDead")
+
+local schdIdle = ai_schedule.New()
+schdIdle:EngTask("TASK_WAIT", 1)
+
+function ENT:DoStartScheduleEscort()
+	self:StartSchedule(schdEscort)
 end
 
 function ENT:DoStartScheduleIdle()
 	self:StartSchedule(schdIdle)
 end
 
-function ENT:Reset()
-	self.ResetTime = nil
-	local entlist = ents.FindByClass("hostage_entity")
-	if #entlist > 0 then
-		self:SetPos(entlist[math.random(#entlist)]:GetPos())
-	end
-end
+function ENT:TaskStart_PlaySequence(data)
+	local SequenceID = data.ID
 
-function ENT:OnTakeDamage(dmginfo)
-	if self.DEAD then return end
+	if data.Name then SequenceID = self:LookupSequence(data.Name) end
 
-	if not self:GetCarry():IsValid() and dmginfo:GetAttacker():IsValid() and string.sub(dmginfo:GetAttacker():GetClass(), 1, 12) == "trigger_hurt" then
-		self:Reset()
+	self:ResetSequence(SequenceID)
+	self:SetNPCState(NPC_STATE_SCRIPT)
+
+	local Duration
+
+	if data.Duration then
+		Duration = data.Duration
+	elseif data.Speed and 0 < data.Speed then
+		SequenceID = self:SetPlaybackRate(data.Speed)
+		Duration = self:SequenceDuration() / data.Speed
 	else
-		self:EmitSound("hostage/hpain/hpain"..math.random(6)..".wav")
+		Duration = self:SequenceDuration()
 	end
-end 
 
-function ENT:SelectSchedule()
-	--self:StartSchedule(schdIdle)
+	if data.StartSounds then self:EmitSound(data.StartSounds[math.random(1, #data.StartSounds)]) end
+
+	self.TaskSequenceEnd = CurTime() + Duration
 end
 
-local usesounds = file.Find("sound/hostage/huse/*.wav", "GAME")
-local unusesounds = file.Find("sound/hostage/hunuse/*.wav", "GAME")
-function ENT:StartCarry(ent)
-	if ent and ent:IsValid() then
-		self:SetCollisionGroup(COLLISION_GROUP_WORLD)
-		self:SetMoveType(MOVETYPE_NONE)
-		self:SetSolid(SOLID_NONE)
-		self:SetNoDraw(true)
-		self:SetCarry(ent)
-		self:EmitSound("hostage/huse/"..usesounds[math.random(#usesounds)])
+function ENT:Task_PlaySequence(data)
+	if CurTime() < self.TaskSequenceEnd then return end
 
-		ent:SetState(STATE_CARRYHOSTAGE, nil, self)
-	end
+	self:TaskComplete()
+	self:SetNPCState(NPC_STATE_NONE)
+
+	if data.EndSounds then self:EmitSound(data.EndSounds[math.random(1, #data.EndSounds)]) end
+
+	self.TaskSequenceEnd = nil
 end
 
-function ENT:EndCarry(dontcallstate, silent)
-	local carry = self:GetCarry()
-	if carry:IsValid() then
-		self:SetPos(carry:GetPos())
-		self:SetAngles(carry:GetAngles())
+function ENT:TaskStart_CheckEscortDead()
+	self:TaskComplete()
 
-		if not silent then
-			self:EmitSound("hostage/hunuse/"..unusesounds[math.random(#unusesounds)])
-		end
-		self.NextPlayerUse = CurTime() + 0.75
+	local escort = self.Escort
 
-		if not dontcallstate and carry:GetState() == STATE_CARRYHOSTAGE then carry:EndState() end
-
-		self:SetLastDrop(CurTime())
-	end
-	self:SetCarry(NULL)
-
-	self:SetCollisionGroup(COLLISION_GROUP_DEBRIS_TRIGGER)
-	self:SetSolid(SOLID_BBOX)
-	self:SetMoveType(MOVETYPE_STEP)
-	self:SetNoDraw(false)
-	self:DropToFloor()
-end
-
-function ENT:Think()
-	if self.ResetTime and CurTime() >= self.ResetTime then
-		self:Reset()
-	else
-		local carry = self:GetCarry()
-		if carry:IsValid() then
-			if carry:IsPlayer() and carry:Alive() and carry:GetActiveWeapon():IsValid() and carry:GetActiveWeapon():GetClass() == "weapon_as_hostage" then
-				self:SetPos(carry:GetPos())
-
-				self:NextThink(CurTime())
-				return true
+	if escort then
+		if not escort:IsValid() then
+			self:StartSchedule(schdIdle)
+			self.Escort = nil
+		elseif not escort:Alive() then
+			self:StartSchedule(schdIdle)
+			self.Escort = nil
+		else
+			local trueeye = self:TrueEyePos()
+			local dist = escort:NearestPoint(trueeye):Distance(trueeye)
+			if 1024 < dist then
+				self:StartSchedule(schdIdle)
+				self.Escort = nil
 			else
-				self:EndCarry()
+				self:SetTarget(escort)
 			end
 		end
 	end
 end
 
-function ENT:UpdateTransmitState()
-	return TRANSMIT_ALWAYS
+function ENT:Task_CheckEscortDead()
+end
+
+function ENT:OnTakeDamage(dmg)
+	if self.DEAD then return end
+
+	local attacker = dmg:GetAttacker()
+
+	local owner = attacker:GetOwner()
+	if owner and owner:IsValid() then
+		attacker = owner
+	end
+
+	self:SetHealth(self:Health() - dmg:GetDamage())
+
+	self:EmitSound("hostage/hpain/hpain"..math.random(1,6)..".wav")
+
+	if self:Health() <= 0 then
+		self.DEAD = true
+		local ragdoll = ents.Create("prop_ragdoll")
+		if ragdoll:IsValid() then
+			ragdoll:SetPos(self:GetPos())
+			ragdoll:SetAngles(self:GetAngles())
+			ragdoll:SetModel(self:GetModel())
+			ragdoll:Spawn()
+			ragdoll:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
+			if dmg and dmg.GetDamageForce then
+				local force = dmg:GetDamageForce()
+				if force:Length() == 0 then
+					force = VectorRand() * 64
+				end
+				ragdoll:GetPhysicsObject():SetVelocityInstantaneous(force * 500)
+			end
+			ragdoll:Fire("kill", "", 15)
+		end
+
+		self:Remove()
+		return
+	end
+end 
+
+function ENT:SelectSchedule()
+	local escort = self.Escort
+
+	if escort and escort:IsValid() then
+		self:StartSchedule(schdEscort)
+	else
+		self:StartSchedule(schdIdle)
+	end
+end
+
+function ENT:GetAttackSpread(weapon, target)
+	return 0
 end

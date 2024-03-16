@@ -1,164 +1,139 @@
-local pWeaponBar
-local pWeaponSelection
-
-local function CloseButtonDoClick(self)
-	self:GetParent():Remove()
+local function SubmitWeapon(btn)
+	RunConsoleCommand("buyweapon", btn.WeaponSlot)
+	pBuyMenu:Remove()
 end
 
-local color_black_alpha120 = Color(0, 0, 0, 120)
-local function pWeaponBarPaint(self)
-	draw.RoundedBox(8, 0, 0, self:GetWide(), self:GetTall(), color_black_alpha120)
-
-	return true
-end
-
-local function PreviewDoClick(self)
-	if self.Slot == -1 then
-		RunConsoleCommand("awesomestrike_skill", self.BuyableID)
-	else
-		RunConsoleCommand("awesomestrike_weapon"..self.Slot, self.BuyableID)
-	end
-	pWeaponSelection:Remove()
-end
-
-local function PreviewThink(self)
-	if not self.Hovered or pWeaponSelection.BuyableID == self.BuyableID then return end
-	pWeaponSelection.BuyableID = self.BuyableID
-
-	if pWeaponSelection._Preview and pWeaponSelection._Preview then
-		pWeaponSelection._Preview:Remove()
-	end
-
-	local isskill = self.Slot == -1
-	local buyable
-	if isskill then
-		buyable = SKILLS[self.BuyableID]
-	else
-		buyable = GAMEMODE:GetBuyable(MySelf, self.BuyableID)
-	end
-
-	if buyable then
-		local window = vgui.Create(isskill and "DSkillStats" or "DWeaponStats", pWeaponSelection)
-		window:SetBuyable(buyable)
-		window:SetSize(pWeaponSelection:GetWide() - 32, pWeaponSelection:GetTall() * 0.5 - 32)
-		window:SetPos(16, 24)
-		pWeaponSelection._Preview = window
-	end
-end
-
-function GM:ShowWeaponSelection(slot)
-	if pWeaponSelection and pWeaponSelection:Valid() then
-		pWeaponSelection:Remove()
-	end
-
-	slot = slot or 1
-
-	local window = vgui.Create("DFrame")
-	if slot == -1 then
-		window:SetTitle("CHOOSE YOUR SKILL")
-	else
-		window:SetTitle("CHOOSE A WEAPON FOR SLOT "..slot)
-	end
-	window:SetDraggable(false)
-	window:SetDeleteOnClose(true)
-	window:SetSize(500, ScrH() * 0.75 - 192)
-	pWeaponSelection = window
-
-	local list = vgui.Create("DPanelList", window)
-	list:SetSize(window:GetWide() - 16, window:GetTall() * 0.5 - 16)
-	list:SetPos(8, window:GetTall() * 0.5 + 8)
-	list:SetPadding(8)
-	list:SetSpacing(2)
-	list:EnableVerticalScrollbar()
-
-	if slot == -1 then
-		for skillid, skilltab in ipairs(SKILLS) do
-			if skillid == SKILL_NONE then continue end
-
-			local text = string.upper(skilltab.Name)
-			if GetConVarNumber("awesomestrike_skill") == skillid then
-				text = ">> "..text.." <<"
-			end
-			local button = EasyButton(list, text, 0, 4)
-			button.Slot = -1
-			button.BuyableID = skillid
-			button.DoClick = PreviewDoClick
-			button.Think = PreviewThink
-
-			list:AddItem(button)
-		end
-	else
-		for weptype, weptypename in ipairs(GAMEMODE.WeaponTypes) do
-			local pan = vgui.Create("DPanel", list)
-			pan:SetTall(32)
-			list:AddItem(pan)
-			local lab = EasyLabel(pan, weptypename, "ass24_shadow", COLOR_TEXTYELLOW)
-			lab:CenterVertical()
-			lab:AlignLeft(32)
-
-			for i=1, #GAMEMODE.Buyables do
-				local weptab = GAMEMODE:GetBuyable(LocalPlayer(), i)
-				if not weptab or weptab.Type ~= weptype then continue end
-
-				local text = string.upper(weptab.Name)
-				if GetConVarNumber("awesomestrike_weapon1") == i or GetConVarNumber("awesomestrike_weapon2") == i or GetConVarNumber("awesomestrike_weapon3") == i then
-					text = ">> "..text.." <<"
-				end
-
-				local button = EasyButton(list, text, 0, 4)
-				button.Slot = slot
-				button.BuyableID = i
-				button.Buyable = weptab
-				button.DoClick = PreviewDoClick
-				button.Think = PreviewThink
-
-				list:AddItem(button)
+local function WeaponSelectThink(btn)
+	if btn.Hovered and pBuyMenu.CurrentButton ~= btn then
+		pBuyMenu.CurrentButton = btn
+		local desc = btn.WepTab.Description
+		if desc then
+			if pBuyMenu.DescLabel then
+				pBuyMenu.DescLabel:SetText(desc)
+				surface.SetFont("cstrike16")
+				local labw, labh = surface.GetTextSize(desc)
+				pBuyMenu.DescLabel:SetSize(labw, labh)
+			else
+				local label = vgui.Create("DLabel", pBuyMenu)
+				label:SetText(desc)
+				label:SetTextColor(COLOR_TEXTYELLOW)
+				label:SetFont("cstrike16")
+				surface.SetFont("cstrike16")
+				local labw, labh = surface.GetTextSize(desc)
+				label:SetSize(labw, labh)
+				label:SetPos(400, 500)
+				label:SetMouseInputEnabled(false)
+				label:SetKeyboardInputEnabled(false)
+				pBuyMenu.DescLabel = label
+				table.insert(pBuyMenu.Buttons, label)
 			end
 		end
 	end
-
-	window:CenterHorizontal()
-	window:AlignTop(ScrH() * 0.1 + 192)
-	window:MakePopup()
-
-	DrawStylishBackground(window)
 end
 
-function GM:ShowSpare1()
-	if pWeaponBar and pWeaponBar:Valid() then
-		pWeaponBar:Remove()
+local function MakeWeapons(typ, panel)
+	for _, p in pairs(panel.Buttons) do if p:Valid() then p:Remove() end end
+	panel.Buttons = {}
+
+	if typ == 0 then
+		panel:SetTitle("PRIMARY WEAPONS")
+	elseif typ == 1 then
+		panel:SetTitle("SECONDARY WEAPONS")
+	else
+		panel:SetTitle("TERTIARY WEAPONS")
 	end
 
-	pWeaponBar = vgui.Create("DPanel")
-	pWeaponBar.Paint = pWeaponBarPaint
-	pWeaponBar:SetTall(184)
-
-	local x = 16
-	for i=1, 3 do
-		local icon = vgui.Create("DWeaponIcon", pWeaponBar)
-		icon:SetSize(128, 128)
-		icon:SetPos(x, 16)
-		icon:SetSlot(i)
-
-		x = x + icon:GetWide() + 16
+	--[[local y = 90
+	for i, weptab in ipairs(GAMEMODE.Buyables) do
+		if weptab.Type == typ and (not weptab.Team or weptab.Team == MySelf:Team()) then
+			local button = CSButton(panel, "  "..string.upper(weptab.Name).." - "..weptab.Cost.." Silver", SubmitWeapon, nil, WeaponSelectThink)
+			button:SetPos(48, y)
+			button.WepTab = weptab
+			button.Weapon = weptab.Name
+			button.WeaponSlot = weptab.Slot
+			table.insert(panel.Buttons, button)
+			y = y + 64
+		end
 	end
 
-	local icon = vgui.Create("DSkillIcon", pWeaponBar)
-	icon:SetSize(128, 128)
-	icon:SetPos(x, 16)
-	x = x + icon:GetWide() + 16
+	y = y + 64
+	CSButton(panel, "  CANCEL", MakepBuyMenu):SetPos(48, y)]]
 
-	pWeaponBar:SetWide(x)
+	local pList = vgui.Create("DPanelList", panel)
+	pList:SetPos(48, 90)
+	pList:SetSize(350, panel:GetTall() - 218)
+	pList:SetSpacing(16)
+	pList:EnableVerticalScrollbar()
+	table.insert(panel.Buttons, pList)
 
-	local closebutton = EasyButton(pWeaponBar, "Close", 0, 8)
-	closebutton:SetWide(pWeaponBar:GetWide() / 2)
-	closebutton:CenterHorizontal()
-	closebutton:AlignBottom(8)
-	closebutton.DoClick = CloseButtonDoClick
+	for i, weptab in ipairs(GAMEMODE.Buyables) do
+		if weptab.Type == typ and (not weptab.Team or weptab.Team == MySelf:Team()) then
+			local button = CSButton(panel, "  "..string.upper(weptab.Name).." - "..math.ceil(MySelf:GetDiscount() * weptab.Cost).." Silver", SubmitWeapon, nil, WeaponSelectThink)
+			button.WepTab = weptab
+			button.Weapon = weptab.Name
+			button.WeaponSlot = weptab.Slot
 
-	pWeaponBar:CenterHorizontal()
-	pWeaponBar:AlignTop(ScrH() * 0.1)
-	pWeaponBar:MakePopup()
+			local oldwide = button:GetWide()
+			pList:AddItem(button)
+			button:SetWide(oldwide)
+		end
+	end
 
-	DrawStylishBackground(pWeaponBar)
+	CSButton(panel, "  CANCEL", MakepBuyMenu):SetPos(48, panel:GetTall() - 112)
+end
+
+function MakepBuyMenu()
+	if pBuyMenu then
+		pBuyMenu:Remove()
+		pBuyMenu = nil
+	end
+
+	local pw = 800
+	local ph = 600
+
+	local Window = vgui.Create("DFrame")
+	Window.Buttons = {}
+	Window:SetSize(pw, ph)
+	Window:Center()
+	Window:SetTitle("BUY")
+	Window:SetVisible(true)
+	Window:SetDraggable(false)
+	Window:SetKeyboardInputEnabled(false)
+	Window:MakePopup()
+	Window.OldThink = Window.Think
+	Window.Think = function(wind)
+		if not CanBuy then wind:Remove() end
+		wind:OldThink()
+	end
+	pBuyMenu = Window
+
+	local button = CSButton(Window, "  PRIMARY WEAPONS", function(btn) MakeWeapons(0, Window) end)
+	button:SetPos(48, 200)
+	table.insert(Window.Buttons, button)
+
+	local button = CSButton(Window, "  SECONDARY WEAPONS", function(btn) MakeWeapons(1, Window) end)
+	button:SetPos(48, 264)
+	table.insert(Window.Buttons, button)
+
+	local button = CSButton(Window, "  TERTIARY WEAPONS", function(btn) MakeWeapons(2, Window) end)
+	button:SetPos(48, 328)
+	table.insert(Window.Buttons, button)
+
+	local button = CSButton(Window, "  MAKING FAVORITES", function(btn)
+		RunConsoleCommand("showconsole")
+		print("How to use the console to make favorites:")
+		print("Use the console command buyweapon # to buy a weapon. Example, buyweapon 3 will get a Crossfire.")
+		print("Then you can bind a key to buy that weapon or even multiple ones. Example, bind \"f9\" \"buyweapon 3;buyweapon 18;buyweapon 17\"")
+		print("Then when you press f9 you will buy a Crossfire, a Grapple Beam, and a Med-ray all at once.")
+		print("Complete listing of all weapons and their ID's:")
+		for i, weptab in pairs(GAMEMODE.Buyables) do
+			print(weptab.Slot, weptab.Name)
+		end
+	end)
+	button:SetPos(pw - button:GetWide() - 48, 456)
+	table.insert(Window.Buttons, button)
+
+	local button = CSButton(Window, "  CLOSE", function(btn) pBuyMenu:Remove() end)
+	button:SetPos(48, 456)
+	table.insert(Window.Buttons, button)
 end

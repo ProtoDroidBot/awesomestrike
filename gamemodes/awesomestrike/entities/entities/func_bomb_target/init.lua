@@ -5,30 +5,17 @@ function ENT:Initialize()
 		self.On = true
 	end
 
-	--timer.SimpleEx(0, self.CreateCaptureZone, self)
-end
-
-function ENT:CreateCaptureZone()
-	--[[local ent = ents.Create("point_capturezone")
-	if ent:IsValid() then
-		local aa, bb = self:WorldSpaceAABB()
-		ent:SetPos(Vector((aa.x + bb.x) / 2, (aa.y + bb.y) / 2, aa.z))
-		ent:Spawn()
-
-		ent.m_BombTarget = self
-		self.m_CaptureZone = ent
-
-		ent:InitializeCaptureZone(math.min(self:BoundingRadius() / 2, 128))
-	end]]
+	self.bombexplodes = self.bombexplodes or {}
 end
 
 function ENT:Think()
 end
 
 function ENT:KeyValue(key, value)
-	key = string.lower(key)
-	if key == "bombexplode" then
-		self:AddOnOutput(key, value)
+	if string.lower(key) == "bombexplode" then
+		local tab = string.Explode(",", value)
+		self.bombexplodes = self.bombexplodes or {}
+		table.insert(self.bombexplodes, {entityname=tab[1], input=tab[2], args=tab[3], delay=tab[4], reps=tab[5]})
 	end
 end
 
@@ -43,7 +30,7 @@ function ENT:AcceptInput(name, activator, caller, arg)
 		for _, pl in pairs(player.GetAll()) do
 			if pl.CanPlantBomb == self then
 				pl.CanPlantBomb = nil
-				pl:SendLua("MySelf.CanPlantBomb=nil")
+				pl:SendLua("CanPlantBomb=nil")
 			end
 		end
 
@@ -80,22 +67,14 @@ end
 function ENT:StartTouch(ent)
 	if ent:IsPlayer() then
 		ent.CanPlantBomb = self
-		ent:SendLua("MySelf.CanPlantBomb="..self:EntIndex())
-
-		if ent:Team() == TEAM_T and #ents.FindByClass("planted_bomb") == 0 then
-			ent:Give("weapon_as_bomb")
-		end
+		ent:SendLua("CanPlantBomb="..self:EntIndex())
 	end
 end
 
 function ENT:EndTouch(ent)
 	if ent.CanPlantBomb == self then
 		ent.CanPlantBomb = nil
-		ent:SendLua("MySelf.CanPlantBomb=nil")
-
-		if ent:Team() == TEAM_T then
-			ent:StripWeapon("weapon_as_bomb")
-		end
+		ent:SendLua("CanPlantBomb=nil")
 	end
 end
 

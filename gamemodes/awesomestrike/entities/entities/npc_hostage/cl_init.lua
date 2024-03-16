@@ -1,25 +1,13 @@
 include("shared.lua")
 
-ENT.RenderGroup = RENDERGROUP_TRANSLUCENT
+ENT.RenderGroup = RENDERGROUP_BOTH
 
-function ENT:DrawTranslucent()
-	local carry = self:GetCarry()
-	if carry:IsValid() then
-		local ang = carry:SyncAngles()
-		self:SetPos(carry:GetPos())
-		self:SetAngles(carry:GetAngles() + ang:Forward() * -12 + ang:Up() * 24)
-
-		self:DrawModel()
-	end
+function ENT:Draw()
+	self:DrawModel()
 end
 
-function ENT:Think()
-	if self:GetCarry():IsValid() then
-		self:SetPos(self:GetCarry():GetPos())
-
-		self:NextThink(CurTime())
-		return true
-	end
+function ENT:DrawTranslucent()
+	self:Draw()
 end
 
 function ENT:BuildBonePositions(NumBones, NumPhysBones)

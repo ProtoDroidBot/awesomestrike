@@ -1,164 +1,59 @@
-GM.Help = [[<html>
-
-<head>
-
-<style>
-	body
-	{
-		background-color:black;
-		font-family:tahoma,verdana,arial;
-		font-size:8pt;
-		color:white;
-		padding:4px;
-		padding-right:16px;
-	}
-	tr
-	{
-		border-top,border-bottom:1px dotted white;
-	}
-	h4
-	{
-		font-weight:bolder;
-		text-decoration:underlined;
-		font-size:12pt;
-		margin-bottom:10px;
-		color:EEEE00;
-	}
-	table
-	{
-		font-size:8pt;
-		width:90%;
-		margin-left:auto;
-		margin-right:auto;
-	}
-</style>
-
-</head>
-
-<body>
-
-<h4>Synopsis</h4>
-Awesome Strike is an attempt to create a cooler version of Counter-Strike and other tactical shooters while bringing in elements from fast-paced action games like DMC, S4, and GunZ. 
-Bullets are physical and take time to travel and objectives are remade to be in the faster-paced environment.
-<br><br>
-<span style="color:red;text-decoration:underlined">It's strongly recommended that you have Counter-Strike: Source or its resource pack installed. If not then you may have missing textures and models.</span>
-
-<h4>Controls</h4>
-<table rules="rows">
-	<thead>
-		<th width="25%">Key</th>
-		<th width="75%">Action</th>
-	</thead>
-	<tbody>
-		<tr>
-			<td>SPRINT (Default: Shift)</td>
-			<td>While not on ground and next to wall: WALL RUN
-			</td>
-		</tr>
-		<tr>
-			<td>JUMP (Default: Space)</td>
-			<td>While holding left strafe: DODGE LEFT<br>
-			While holding right strafe: DODGE RIGHT<br>
-			While sliding: SLIDE JUMP<br>
-			While not on ground and facing wall: WALL JUMP<br>
-			</td>
-		</tr>
-		<tr>
-			<td>WALK (Default: Alt)</td>
-			<td>ACTIVATE SKILL</td>
-		</tr>
-		<tr>
-			<td>DUCK (Default: Ctrl)</td>
-			<td>While sprinting: GROUND SLIDE</td>
-		</tr>
-		<tr>
-			<td>F1</td>
-			<td>Help</td>
-		</tr>
-		<tr>
-			<td>F2</td>
-			<td>Change team / spectate</td>
-		</tr>
-		<tr>
-			<td>F3</td>
-			<td>Equipment menu (while in a buy zone)</td>
-		</tr>
-		<tr>
-			<td>F4</td>
-			<td>Radio</td>
-		</tr>
-	</tbody>
-</table>
-
-<h4>How to play</h4>
-When the round starts, all players are frozen for a few seconds. Use this time to select your weaponry. Each player can carry up to three weapons. Press F3 while in a buy zone to get new weapons. 
-A <span style="color:limegreen">green</span> notice appears center-right on the screen when you can do certain actions like buying weapons.
-<br><br>
-Once you are unfrozen, use tactics and skill to complete the objectives and kill the other team. 
-If you happen to die, don't worry! You can respawn in ]]..GM.RespawnTime..[[ seconds or have a team member revive you.
-
-<h4>Objectives</h4>
-There are a bunch of different objectives depending on the map. A round ends when:
-<ul>
-<li>A bomb is successfully detonated by the terrorists.</li>
-<li>A bomb is disarmed by the counter-terrorists.</li>
-<li>All hostages are rescued by the counter-terrorists.</li>
-<li>All the members of a team have died once if there are no bomb targets or hostages.</li>
-</ul>
-
-<h4>Tips and other info</h4>
-<ul>
-<li>Bullets take time to travel. Lead your shots or use the Smart Rifle or Smart Targeting skill.</li>
-<li>There are no head shots or damage bonuses for hitting vital areas. Focus on hitting your target, not hitting their head.</li>
-<li>The Awesome Rifle and Awesome Launcher can be shot without guiding capabilities by pressing right click.</li>
-<li>The Knife does triple damage in the back and thrown knives deal damage based on air time.</li>
-<li>Walls can be climbed by wall jumping and then dodging in to the wall repeatedly.</li>
-<li>Attacking while dodging will cancel the dodge, allowing you to keep your velocity.</li>
-<li>Stay on the move. It's much harder to hit moving targets especially when bullets take time to travel.</li>
-<li>Sliding in to props can bash them in to other players, potentially killing them.</li>
-<li>Hostages can't be killed no matter how much you beat on them.</li>
-<li>You will respawn after some time but team members can revive you on the spot to save precious seconds in travel time.</li>
-<li>Weapons such as grenades have cool down times. After using them you will get a new one after a few seconds.</li>
-<li>The Mechanical Mastery skill halves the cooldown time on things like grenades and detonation packs.</li>
-<li>Use voice chat.</li>
-</ul>
-
-<h4>Credits</h4>
-Created by William "JetBoom" Moodhe<br>
-williammoodhe@gmail.com<br>
-noxiousnet.com
-
-</body>
-
-</html>]]
-
-local Window
-function GM:ShowHelp()
-	if Window then
-		Window:SetVisible(true)
-		Window:MakePopup()
+function MakepHelp()
+	if pHelp then
+		pHelp:SetVisible(true)
+		pHelp:MakePopup()
 		return
 	end
 
-	local wide = 480
-	local tall = 480
-
-	Window = vgui.Create("DFrame")
+	local Window = vgui.Create("DFrame")
+	local wide = 800
+	local tall = 600
 	Window:SetSize(wide, tall)
-	Window:SetTitle("Help")
-	Window:SetDeleteOnClose(false)
-
-	local html = vgui.Create("DHTML", Window)
-	html:StretchToParent(8, 32, 8, 40)
-	html:SetHTML(GAMEMODE.Help)
-
-	local button = EasyButton(Window, "Close", 16, 8)
-	button:AlignBottom(8)
-	button:CenterHorizontal()
-	button.DoClick = function(btn) btn:GetParent():Close() end
-
 	Window:Center()
+	Window:SetTitle(" ")
+	Window:SetVisible(true)
+	Window:SetDraggable(false)
+	Window:SetKeyboardInputEnabled(false)
 	Window:MakePopup()
+	Window:SetDeleteOnClose(false)
+	Window:SetCursor("pointer")
+	pHelp = Window
 
-	DrawStylishBackground(Window)
+	surface.SetFont("cstrike64")
+	local texw, texh = surface.GetTextSize("Help")
+	local label = vgui.Create("DLabel", Window)
+	label:SetSize(texw, texh)
+	label:SetTextColor(COLOR_RED)
+	label:SetFont("cstrike64")
+	label:SetText("Help")
+	label:SetPos(wide * 0.5 - texw * 0.5, 2)
+	label:SetMouseInputEnabled(false)
+
+	local check = vgui.Create("DCheckBoxLabel", Window)
+	check:SetPos(32, 32)
+	check:SetSize(wide, 32)
+	check:SetText("Display Controls on screen")
+	check:SetConVar("awesomestrike_displaycontrols")
+
+	local y = 72
+	for i, line in ipairs({"In Awesome Strike, the objective is to either kill the other team or complete the objective.", "The objective in de_ maps is to plant / defuse the bomb. In cs_ maps it's to protect / rescue hostages.", "Any other map it's to just kill the other team.", "If you die, you can not respawn until the current round ends. Anything you say won't be heard by the living.", " ", "You can do a whole bunch of awesome moves (displayed on top of the screen) like wall jumping and dashing.", "All of the weapons have been made to be awesome!", "With that in mind, remember that all bullets are physical and take time to get to their target!", "You can hold three different weapons, each in a different slot - primary, secondary, and tertiary.", " ", "F1 - Help", "F2 - Change Team", "F3 - Buy", "F4 - Options", " ", "More and more is being added to this game so check http://www.noxiousnet.com for updates.", " ", "Game created by William \"JetBoom\" Moodhe (jetboom@yahoo.com)"}) do
+		surface.SetFont("Default")
+		local txtw, txth = surface.GetTextSize(line)
+
+		local dlabel = vgui.Create("DLabel", Window)
+		dlabel:SetSize(txtw, txth)
+		dlabel:SetTextColor(COLOR_TEXTYELLOW)
+		dlabel:SetFont("Default")
+		dlabel:SetText(line)
+		dlabel:SetPos(wide * 0.5 - txtw * 0.5, y)
+		dlabel:SetMouseInputEnabled(false)
+
+		y = y + txth
+	end
+
+	local button = vgui.Create("DButton", Window)
+	button:SetPos(wide * 0.5 - 50, tall - 36)
+	button:SetSize(100, 28)
+	button:SetText("Close")
+	button.DoClick = function(btn) btn:GetParent():SetVisible(false) end
 end

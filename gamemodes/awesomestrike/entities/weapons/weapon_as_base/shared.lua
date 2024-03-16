@@ -1,6 +1,8 @@
 if SERVER then
 	AddCSLuaFile("shared.lua")
-	AddCSLuaFile("animations.lua")
+	SWEP.Weight = 5
+	SWEP.AutoSwitchTo = false
+	SWEP.AutoSwitchFrom = false
 end
 
 if CLIENT then
@@ -8,37 +10,28 @@ if CLIENT then
 	SWEP.DrawCrosshair = false
 	SWEP.ViewModelFOV = 55
 	SWEP.ViewModelFlip = true
-	SWEP.ConeCrosshair = true
-	SWEP.SlotPos = 0
-
-	SWEP.SwayScale = 1
-	SWEP.BobScale = 0.5
-
-	SWEP.SprintViewRR = -7
-	SWEP.SprintViewRU = -12
-	SWEP.SprintViewRF = 0
-	SWEP.SprintViewMR = 0
-	SWEP.SprintViewMU = 0
-	SWEP.SprintViewMF = -5.5
-
-	include("animations.lua")
+	SWEP.CSMuzzleFlashes = true
 end
 
-SWEP.Primary.Sound = Sound("Weapon_AK47.Single")
-SWEP.Primary.NumShots = 1
-SWEP.Primary.Delay = 0.15
-SWEP.Primary.BusyTime = SWEP.Primary.Delay + 0.1
-SWEP.Primary.DefaultClip = 99999
+SWEP.PrimarySound = Sound("Weapon_AK47.Single")
+SWEP.PrimaryRecoil = 1.5
+SWEP.PrimaryDamage = 40
+SWEP.PrimaryNumShots = 1
+SWEP.PrimaryDelay = 0.15
+SWEP.PrimaryBusyTime = 0.1
 
-SWEP.Cone = 2
-SWEP.ConeVariance = 1
+SWEP.Cone = 3.6
+SWEP.ConeMoving = 5.25
+SWEP.ConeJumping = 9
+SWEP.ConeCrouching = 2.25
+SWEP.ConeCrouchMoving = 3
 
 SWEP.NextSecondaryAttack = 0
 
-SWEP.Primary.ClipSize = 1
-SWEP.Primary.DefaultClip = 99999
+SWEP.Primary.ClipSize = -1
+SWEP.Primary.DefaultClip = -1
 SWEP.Primary.Automatic = true
-SWEP.Primary.Ammo = "pistol"
+SWEP.Primary.Ammo = "none"
 
 SWEP.Secondary.ClipSize = 1
 SWEP.Secondary.DefaultClip = 1
@@ -46,81 +39,25 @@ SWEP.Secondary.Automatic = false
 SWEP.Secondary.Ammo = "CombineCannon"
 SWEP.Secondary.BusyTime = 0.1
 
-SWEP.BulletDamage = 40
-SWEP.BulletSpeed = 2900 -- Bullets travel about 1000 MPH but it's reduced about 5x for gameplay.
-SWEP.BulletClass = "projectile_asbullet"
+SWEP.BulletSpeed = 3000 -- Bullets travel about 1000 MPH but it's reduced about 5x for gameplay.
 
-SWEP.MuzzleFlashEffect = "muzzleflash1"
-
-SWEP.WalkSpeed = SPEED_NORMAL
+SWEP.WalkSpeed = 200
 
 SWEP.HoldType = "pistol"
 
-SWEP.LastShoot = 0
-
-SWEP.ShootingSpeed = 0.7
-
-function SWEP:OnInitialize()
-end
-
-function SWEP:Initialize()
-	self:SetWeaponHoldType(self.HoldType)
-	self:SetWeaponSprintHoldType(self.SprintHoldType or self.HoldType)
-	self:SetDeploySpeed(3)
-
-	self:OnInitialize()
-
-	if CLIENT then
-		self:Anim_Initialize()
-	end
-end
-
-function SWEP:SetWeaponSprintHoldType(t)
-	local old = self.ActivityTranslate
-	self:SetWeaponHoldType(t)
-	local new = self.ActivityTranslate
-	self.ActivityTranslate = old
-	self.ActivityTranslateSprint = new
-end
-
-function SWEP:TranslateActivity(act)
-	--[[if self.Owner:GetState() == STATE_SPRINT then
-		return self.ActivityTranslateSprint[act]
-	end]]
-
-	if self.ActivityTranslate[act] ~= nil then
-		return self.ActivityTranslate[act]
-	end
-
-	return -1
-end
-
-function SWEP:Move(move)
-	if self:IsReloading() then
-		move:SetMaxSpeed(move:GetMaxSpeed() * 0.8)
-		move:SetMaxClientSpeed(move:GetMaxClientSpeed() * 0.8)
-	elseif self:IsShooting() then
-		move:SetMaxSpeed(move:GetMaxSpeed() * self.ShootingSpeed)
-		move:SetMaxClientSpeed(move:GetMaxClientSpeed() * self.ShootingSpeed)
-
-		local owner = self.Owner
-		if owner:GetState() == STATE_NONE and not owner:OnGround() and not owner.WallJumpInAir then
-			local vel = move:GetVelocity()
-			local maxvel = move:GetMaxSpeed() * 2.25
-			if vel:Length2D() >= maxvel then
-				local oldz = vel.z
-				vel.z = 0
-				vel:Normalize()
-				vel = vel * maxvel
-				vel.z = oldz
-				move:SetVelocity(vel)
-			end
-		end
-	end
-end
-
 function SWEP:Deploy()
-	gamemode.Call("WeaponDeployed", self.Owner, self)
+	self:SetNextReload(0)
+
+	local owner = self.Owner
+
+	owner:DrawViewModel(true)
+	owner:DrawWorldModel(true)
+	GAMEMODE:WeaponDeployed(owner, self)
+
+	local col = team.GetColor(owner:Team())
+	self.colBulletR = col.r
+	self.colBulletG = col.g
+	self.colBulletB = col.b
 
 	if self.PreHolsterClip1 then
 		self:SetClip1(self.PreHolsterClip1)
@@ -131,169 +68,333 @@ function SWEP:Deploy()
 		self.PreHolsterClip2 = nil
 	end
 
-	self:GiveWeaponStatus()
-
-	if self.LuaAnim_Idle then
-		self.Owner:SetLuaAnimation(self.LuaAnim_Idle)
-	end
-
 	return true
 end
 
 function SWEP:Holster()
-	if self:OnHolster() then
-		self:SetShootingEnd(0)
-		if not self.CoolDown then
-			self:SetReloadingEnd(0)
-		end
-
-		if self.Primary.Ammo ~= "none" then
-			self.PreHolsterClip1 = self:Clip1()
-		end
-		if self.Secondary.Ammo ~= "none" then
-			self.PreHolsterClip2 = self:Clip2()
-		end
-
-		self:RemoveWeaponStatus()
-		return true
+	--return not self:GetNetworkedBool("cantswap")
+	self.IsShooting = nil
+	self.IsReloading = nil
+	if self.Primary.Ammo ~= "none" then
+		self.PreHolsterClip1 = self:Clip1()
 	end
-
-	return false
-end
-
-function SWEP:OnRemove()
-	self:RemoveWeaponStatus()
-
-	if CLIENT then
-		self:Anim_OnRemove()
+	if self.Secondary.Ammo ~= "none" then
+		self.PreHolsterClip2 = self:Clip2()
 	end
-end
-
-function SWEP:OnHolster()
 	return true
 end
 
-function SWEP:IsIdle()
-	return not self:IsShooting() --and not self:IsReloading()
-end
-
-function SWEP:AlterBulletAngles(pos, ang)
-	if not self.SmartTarget and self.Owner:GetSkill() ~= SKILL_SMARTTARGETING then return end
-
-	local owner = self.Owner
-
-	owner:LagCompensation(true)
-
-	local tr = owner:TraceHull(2048, MASK_SHOT, self.SmartTargetSize or 2, owner:GetAttackFilter())
-	local trent = tr.Entity
-	if trent and trent:IsValid() and trent:IsPlayer() then
-		local eyeangles = owner:EyeAngles()
-		local trentpos = trent:GetPos()
-		trentpos.z = tr.HitPos.z
-		local targetpos = trentpos + (trentpos:Distance(pos) / (self.BulletSpeed * 0.9)) * trent:GetVelocity()
-		local newang = (targetpos - pos):Angle()
-		newang.pitch = newang.pitch + math.AngleDifference(eyeangles.pitch, ang.pitch)
-		newang.yaw = newang.yaw + math.AngleDifference(eyeangles.yaw, ang.yaw)
-		ang = newang
-	end
-
-	owner:LagCompensation(false)
-
-	return ang, true
+function SWEP:IsBusy()
+	return self.IsShooting or self.IsReloading
 end
 
 function SWEP:Think()
-	if self:GetReloadEnd() ~= 0 and self:GetReloadEnd() <= CurTime() and not self.CoolDown then
-		self:SetReloadEnd(0)
+	if self.IsShooting and self.IsShooting <= CurTime() then
+		self.IsShooting = nil
+	end
 
+	if self.IsReloading and self.IsReloading <= CurTime() then
 		self:SetClip1(self.Primary.ClipSize)
 		self:SetClip2(self.Secondary.ClipSize)
+
+		self.IsReloading = nil
 	end
 end
 
-function SWEP:DoShoot()
-	local cone = self:GetCone()
-	self:ShootBullet(self.BulletDamage, self.Primary.NumShots, cone)
-end
+if SERVER then
+	function SWEP:PrimaryAttack()
+		if self:CanPrimaryAttack() then
+			local ct = CurTime()
 
-function SWEP:GetCone()
-	local cone = self.Cone
-	local conevariance = self.ConeVariance
-	local conemul = 0
-	if self.Owner:OnGround() then
-		if 25 < self.Owner:GetVelocity():Length() then
-			if self.Owner:Crouching() then
-				conemul = 0.2
-			else
-				conemul = -0.2
+			self:SetNextPrimaryFire(ct + self.PrimaryDelay)
+			self:SetNextSecondaryFire(ct + self.PrimaryDelay)
+
+			self:EmitSound(self.PrimarySound)
+
+			if self.Owner.DashDodging then
+				self.Owner:RemoveStatus("dashdodge*")
 			end
-		elseif self.Owner:Crouching() then
-			conemul = 0.25
+
+			self:TakePrimaryAmmo(1)
+
+			self:SendWeaponAnim(ACT_VM_PRIMARYATTACK)
+			self.Owner:SetAnimation(PLAYER_ATTACK1)
+			--self.IsShooting = ct + self.PrimaryDelay + 0.01
+			self.IsShooting = ct + self.PrimaryBusyTime
+
+			if self.Owner:IsOnGround() then
+				local moving = 25 < self.Owner:GetVelocity():Length()
+				if moving then
+					if self.Owner:Crouching() then
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeCrouchMoving)
+					else
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeMoving)
+					end
+				else
+					if self.Owner:Crouching() then
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeCrouching)
+					else
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.Cone)
+					end
+				end
+			else
+				self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeJumping)
+			end
 		end
-	else
-		conemul = -0.25
 	end
 
-	return cone * (1 - conemul * conevariance)
+	function SWEP:Initialize()
+		self:SetWeaponHoldType(self.HoldType)
+		self:SetDeploySpeed(3)
+		self.OriginalWalkSpeed = self.WalkSpeed
+	end
+
+	function SWEP:ShootBullet(fDamage, iNumber, fCone)
+		local owner = self.Owner
+		if iNumber == 1 then
+			local bullet = ents.Create("projectile_asbullet")
+			if bullet:IsValid() then
+				bullet:SetPos(owner:GetShootPos())
+				local ang = owner:EyeAngles()
+				ang:RotateAroundAxis(ang:Up(), math.Rand(-fCone, fCone))
+				ang:RotateAroundAxis(ang:Right(), math.Rand(-fCone, fCone))
+				local fwd = ang:Forward()
+				bullet.Heading = fwd
+				bullet:SetAngles(ang)
+				bullet:SetOwner(owner)
+				bullet:SetColor(self.colBulletR, self.colBulletG, self.colBulletB, 255)
+				bullet.Attacker = owner
+				bullet.Inflictor = self
+				bullet.BulletSpeed = self.BulletSpeed
+				bullet:Spawn()
+				bullet.Damage = fDamage
+				bullet:GetPhysicsObject():SetVelocityInstantaneous(fwd * self.BulletSpeed)
+			end
+		else
+			for i=1, iNumber do
+				local bullet = ents.Create("projectile_asbullet")
+				if bullet:IsValid() then
+					bullet:SetPos(owner:GetShootPos())
+					local ang = owner:EyeAngles()
+					ang:RotateAroundAxis(ang:Up(), math.Rand(-fCone, fCone))
+					ang:RotateAroundAxis(ang:Right(), math.Rand(-fCone, fCone))
+					local fwd = ang:Forward()
+					bullet.Heading = fwd
+					bullet:SetAngles(ang)
+					bullet:SetOwner(owner)
+					bullet:SetColor(self.ColBulletR, self.ColBulletG, self.ColBulletB, 255)
+					bullet.Attacker = owner
+					bullet.Inflictor = self
+					bullet.BulletSpeed = self.BulletSpeed
+					bullet:Spawn()
+					bullet.Damage = fDamage
+					bullet:GetPhysicsObject():SetVelocityInstantaneous(fwd * self.BulletSpeed)
+				end
+			end
+		end
+	end
+
+	local ActIndex = {}
+	ActIndex["pistol"] = ACT_HL2MP_IDLE_PISTOL
+	ActIndex["smg"] = ACT_HL2MP_IDLE_SMG1
+	ActIndex["grenade"] = ACT_HL2MP_IDLE_GRENADE
+	ActIndex["ar2"] = ACT_HL2MP_IDLE_AR2
+	ActIndex["shotgun"] = ACT_HL2MP_IDLE_SHOTGUN
+	ActIndex["rpg"] = ACT_HL2MP_IDLE_RPG
+	ActIndex["physgun"] = ACT_HL2MP_IDLE_PHYSGUN
+	ActIndex["crossbow"] = ACT_HL2MP_IDLE_CROSSBOW
+	ActIndex["melee"] = ACT_HL2MP_IDLE_MELEE
+	ActIndex["melee2"] = ACT_HL2MP_IDLE_MELEE2
+	ActIndex["slam"] = ACT_HL2MP_IDLE_SLAM
+	ActIndex["fist"] = ACT_HL2MP_IDLE_FIST
+	ActIndex["passive"] = ACT_HL2MP_IDLE_PASSIVE
+	ActIndex["knife"] = ACT_HL2MP_IDLE_KNIFE
+	ActIndex["normal"] = ACT_HL2MP_IDLE
+
+	function SWEP:SetWeaponHoldType(t, i)
+		t = t or "normal"
+		local index = ActIndex[t]
+		if index then
+			self.ActivityTranslate = {}
+			self.ActivityTranslate[ACT_HL2MP_IDLE] = index
+			self.ActivityTranslate[ACT_HL2MP_WALK] = index+1
+			self.ActivityTranslate[ACT_HL2MP_RUN] = index+2
+			self.ActivityTranslate[ACT_HL2MP_IDLE_CROUCH] = index+3
+			self.ActivityTranslate[ACT_HL2MP_WALK_CROUCH] = index+4
+			self.ActivityTranslate[ACT_HL2MP_GESTURE_RANGE_ATTACK] = index+5
+			self.ActivityTranslate[ACT_HL2MP_GESTURE_RELOAD] = index+6
+			self.ActivityTranslate[ACT_HL2MP_JUMP] = index+7
+			self.ActivityTranslate[ACT_RANGE_ATTACK1] = index+8
+		else
+			Msg("SWEP:SetWeaponHoldType - ActIndex[ \""..t.."\" ] isn't set!\n")
+		end
+	end
 end
 
-function SWEP:PrimaryAttack()
-	if not self:CanPrimaryAttack() then return end
-
-	self.Owner:InterruptSpecialMoves()
-
-	self:SetNextPrimaryFire(CurTime() + self.Primary.Delay)
-	self:SetNextSecondaryFire(CurTime() + self.Primary.Delay)
-	self:SetShootingEnd(CurTime() + self.Primary.BusyTime)
-
-	if self.Primary.Sound then
-		self:EmitSound(self.Primary.Sound)
-	end
-
-	self:TakePrimaryAmmo(1)
-
-	self:SendWeaponAnimation()
-	self.Owner:DoAttackEvent()
-	if self.MuzzleFlashEffect then
-		local effectdata = EffectData()
-			effectdata:SetEntity(self)
-			effectdata:SetOrigin(self:GetPos())
-		util.Effect(self.MuzzleFlashEffect, effectdata)
-	end
-
-	self.LastShoot = CurTime()
-	self:DoShoot()
-end
-
-function SWEP:SendWeaponAnimation()
-	self:SendWeaponAnim(ACT_VM_PRIMARYATTACK)
+function SWEP:TranslateActivity(act)
+	return self.ActivityTranslate[act] or -1
 end
 
 function SWEP:Reload()
-	if not self:IsReloading() and self:IsIdle() and not self.Owner:GetStateTable().CantUseWeapons and self:Clip1() < self.Primary.ClipSize and self:CanReload() and self.Primary.Ammo ~= "none" then
-		self.Owner:DoReloadEvent()
+	if self:GetNextReload() <= CurTime() and not self:IsBusy() and self:Clip1() < self.Primary.ClipSize then
 		self:SendWeaponAnim(ACT_VM_RELOAD)
-		self:SetPlaybackRate(0.5)
-		self:SetReloadEnd(CurTime() + self:SequenceDuration())
+		self.Owner:SetAnimation(PLAYER_RELOAD)
+		local endtime = CurTime() + self:SequenceDuration()
+		self.IsReloading = endtime
+		self:SetNextReload(endtime)
 		if self.ReloadSound then
 			self:EmitSound(self.ReloadSound)
 		end
 	end
 end
 
-function SWEP:CanReload()
-	return true
-end
+--[[function SWEP:ShootBullet(fDamage, iNumber, fCone)
+	local owner = self.Owner
+	if iNumber == 1 then
+		local ang = owner:EyeAngles()
+		ang:RotateAroundAxis(ang:Up(), math.Rand(-fCone, fCone))
+		ang:RotateAroundAxis(ang:Right(), math.Rand(-fCone, fCone))
+		PhysicalBullet(self.Owner, self, owner:GetShootPos(), ang:Forward(), self.BulletSpeed, fDamage)
+	else
+		for i=1, iNumber do
+			local ang = owner:EyeAngles()
+			ang:RotateAroundAxis(ang:Up(), math.Rand(-fCone, fCone))
+			ang:RotateAroundAxis(ang:Right(), math.Rand(-fCone, fCone))
+			PhysicalBullet(self.Owner, self, owner:GetShootPos(), ang:Forward(), self.BulletSpeed, fDamage)
+		end
+	end
+end]]
 
-function SWEP:CanPrimaryAttack(nocheckammo)
-	if self.Owner:GetStateTable().CantUseWeapons or self:IsReloading() then return false end
+if CLIENT then
+	local SprintAng = 0
+	local SprintDist = 0
+	function SWEP:GetViewModelPosition(pos, ang)
+		if SprintAng == 0 and SprintDist == 0 and not self.Owner.Sprinting then return pos, ang end
 
-	if self:Clip1() == 0 then
-		if nocheckammo then
-			self:EmitSound("weapons/pistol/pistol_empty.wav", 50, 100)
-			self:SetNextPrimaryFire(CurTime() + self.Primary.Delay)
+		if self.Owner.Sprinting then
+			SprintAng = math.min(20, SprintAng + FrameTime() * 130)
+			SprintDist = math.min(5.5, SprintDist + FrameTime() * 30)
+		else
+			SprintAng = math.max(0, SprintAng - FrameTime() * 200)
+			SprintDist = math.max(0, SprintDist - FrameTime() * 50)
 		end
 
+		pos = pos + SprintDist * -1 * ang:Forward()
+
+		ang = ang * 1
+		ang:RotateAroundAxis(ang:Right(), SprintAng)
+
+		return pos, ang
+	end
+
+	function SWEP:ShootBullet(fDamage, iNumber, fCone)
+	end
+
+	function SWEP:Initialize()
+		self:SetDeploySpeed(1.75)
+		self.OriginalWalkSpeed = self.WalkSpeed
+	end
+
+	function SWEP:PrimaryAttack()
+		if self:CanPrimaryAttack() then
+			local ct = CurTime()
+			self:SetNextPrimaryFire(ct + self.PrimaryDelay)
+			self:EmitSound(self.PrimarySound)
+
+			self.IsShooting = CurTime() + self.PrimaryDelay + 0.01
+			self.WalkSpeed = math.max(86, self.OriginalWalkSpeed - 60)
+
+			self:TakePrimaryAmmo(1)
+			local owner = self.Owner
+			--local recoil = self.PrimaryRecoil
+			--owner:ViewPunch(Angle(math.Rand(-0.2, -0.1) * recoil, math.Rand(-0.1, 0.1) * recoil, 0))
+
+			self:SetNetworkedFloat("LastShootTime", ct)
+
+			self:SendWeaponAnim(ACT_VM_PRIMARYATTACK)
+			owner:SetAnimation(PLAYER_ATTACK1)
+
+			--self.IsShooting = ct + 0.15
+
+			--[[local eyeang = owner:EyeAngles()
+			eyeang:RotateAroundAxis(eyeang:Right(), math.Rand(0.8, 1.2) * recoil)
+			eyeang:RotateAroundAxis(eyeang:Up(), math.Rand(-0.2, 0.2) * recoil)
+			eyeang.roll = 0
+			self.Owner:SetEyeAngles(eyeang)]]
+
+			if owner:IsOnGround() then
+				local moving = 25 < self.Owner:GetVelocity():Length()
+				if moving then
+					if self.Owner:Crouching() then
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeCrouchMoving)
+					else
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeMoving)
+					end
+				else
+					if self.Owner:Crouching() then
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeCrouching)
+					else
+						self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.Cone)
+					end
+				end
+			else
+				self:ShootBullet(self.PrimaryDamage, self.PrimaryNumShots, self.ConeJumping)
+			end
+		end
+	end
+
+	function SWEP:DrawWeaponSelection(x, y, wide, tall, alpha)
+		draw.SimpleText(self.PrintName, "DefaultBold", x + wide * 0.5, y + tall * 0.5, COLOR_RED, TEXT_ALIGN_CENTER)
+	end
+
+	SWEP.CrossHairScale = 1
+	function SWEP:DrawHUD()
+		local x = w * 0.5
+		local y = h * 0.5
+
+		local scalebyheight = (h / 768) * 0.2
+
+		local scale
+
+		if self.Owner:IsOnGround() then
+			local moving = 25 < self.Owner:GetVelocity():Length()
+			if moving then
+				if self.Owner:Crouching() then
+					scale = scalebyheight * self.ConeCrouchMoving
+				else
+					scale = scalebyheight * self.ConeMoving
+				end
+			else
+				if self.Owner:Crouching() then
+					scale = scalebyheight * self.ConeCrouching
+				else
+					scale = scalebyheight * self.Cone
+				end
+			end
+		else
+			scale = scalebyheight * self.ConeJumping
+		end
+
+		surface.SetDrawColor(0, 230, 0, 230)
+
+		self.CrossHairScale = math.Approach(self.CrossHairScale, scale, FrameTime() * 5 + math.abs(self.CrossHairScale - scale) * 0.012)
+
+		local dispscale = self.CrossHairScale
+		local gap = 40 * dispscale
+		local length = gap + 10 * dispscale
+		surface.DrawLine(x - length, y, x - gap, y)
+		surface.DrawLine(x + length, y, x + gap, y)
+		surface.DrawLine(x, y - length, x, y - gap)
+		surface.DrawLine(x, y + length, x, y + gap)
+	end
+end
+
+function SWEP:CanPrimaryAttack()
+	if self.Owner.Stunned or self.IsReloading then return false end
+
+	if self:Clip1() <= 0 then
+		self:EmitSound("Weapon_Pistol.Empty")
+		self:SetNextPrimaryFire(CurTime() + self.PrimaryDelay)
 		return false
 	end
 
@@ -301,127 +402,10 @@ function SWEP:CanPrimaryAttack(nocheckammo)
 end
 
 function SWEP:SecondaryAttack()
+	if CurTime() < self.NextSecondaryAttack or self.Owner.Stunned then return end
+	self.NextSecondaryAttack = CurTime() + 0.5
 end
 
-if not CLIENT then return end
-
-function SWEP:ViewModelDrawn()
-	self:Anim_ViewModelDrawn()
-end
-
-function SWEP:DrawWorldModel()
-	self:Anim_DrawWorldModel()
-end
-
---[[local SprintPower = 0
-local yawdiff = 0
-local pitchdiff = 0]]
-function SWEP:GetViewModelPosition(pos, ang)
-	--[[if self.Owner:IsSprinting() then
-		SprintPower = math.Approach(SprintPower, 1, FrameTime() * 3)
-	elseif SprintPower > 0 then
-		SprintPower = math.Approach(SprintPower, 0, FrameTime() * 5)
-	end
-
-	if SprintPower > 0 then
-		pos = pos
-		+ SprintPower * self.SprintViewMF * ang:Forward()
-		+ SprintPower * self.SprintViewMU * ang:Up()
-		+ SprintPower * self.SprintViewMR * ang:Right()
-
-		ang = ang * 1
-
-		ang:RotateAroundAxis(ang:Right(), SprintPower * self.SprintViewRR)
-		if self.ViewModelFlip then
-			ang:RotateAroundAxis(ang:Up(), SprintPower * self.SprintViewRU)
-		else
-			ang:RotateAroundAxis(ang:Up(), SprintPower * self.SprintViewRU * -1)
-		end
-		ang:RotateAroundAxis(ang:Forward(), SprintPower * self.SprintViewRF)
-	end
-
-	local rate = FrameTime() * 45
-	local alteredang, _ = self:AlterBulletAngles(pos, ang)
-	if alteredang then
-		pitchdiff = math.Approach(pitchdiff, math.AngleDifference(ang.pitch, alteredang.pitch) * 0.7, rate)
-		yawdiff = math.Approach(yawdiff, (self.ViewModelFlip and math.AngleDifference(ang.yaw, alteredang.yaw) or math.AngleDifference(alteredang.yaw, ang.yaw)) * 0.7, rate)
-	else
-		pitchdiff = math.Approach(pitchdiff, 0, 0)
-		yawdiff = math.Approach(yawdiff, 0, 0)
-	end
-	if pitchdiff ~= 0 or yawdiff ~= 0 then
-		pos = pos + pitchdiff * 0.04 * ang:Up() + yawdiff * 0.04 * ang:Right()
-		ang:RotateAroundAxis(ang:Right(), pitchdiff)
-		ang:RotateAroundAxis(ang:Up(), yawdiff)
-	end]]
-
-	return pos, ang
-end
-
-function SWEP:DrawWeaponSelection(x, y, wide, tall, alpha)
-	draw.SimpleText(self.PrintName, "ass_smaller_shadow", x + wide * 0.5, y + tall * 0.5, COLOR_YELLOW, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-end
-
-local CrossHairScale = 1
-local texGear = surface.GetTextureID("awesomestrike/gear2")
-function SWEP:DrawHUD()
-	if self.DrawCrosshair or not self.ConeCrosshair or self.Owner:CallStateFunction("DontDrawWeaponHUD", self) then return end
-
-	local x = w * 0.5
-	local y = h * 0.5
-
-	local scalebyheight = (h / 768) * 0.2
-
-	local scale = self:GetCone() * scalebyheight
-	CrossHairScale = math.Approach(CrossHairScale, scale, FrameTime() * 5 + math.abs(CrossHairScale - scale) * 0.012)
-
-	local midarea = 40 * CrossHairScale
-	local length = scalebyheight * 24 + midarea / 4
-
-	--surface.SetDrawColor(0, 230, 0, 160)
-	surface.SetDrawColor(255, 177, 0, 160)
-	surface.DrawRect(x - midarea - length, y - 2, length, 4)
-	surface.DrawRect(x + midarea, y - 2, length, 4)
-	surface.DrawRect(x - 2, y - midarea - length, 4, length)
-	surface.DrawRect(x - 2, y + midarea, 4, length)
-	surface.DrawRect(x - 2, y - 2, 4, 4)
-
-	surface.SetDrawColor(0, 0, 0, 160)
-	surface.DrawOutlinedRect(x - midarea - length, y - 2, length, 4)
-	surface.DrawOutlinedRect(x + midarea, y - 2, length, 4)
-	surface.DrawOutlinedRect(x - 2, y - midarea - length, 4, length)
-	surface.DrawOutlinedRect(x - 2, y + midarea, 4, length)
-	surface.DrawOutlinedRect(x - 2, y - 2, 4, 4)
-
-	midarea = math.Clamp(midarea, 12, 32)
-
-	if self:IsReloading() then
-		local geardistance = midarea * 2 + length + 8
-		local geary = y - geardistance
-
-		surface.SetTexture(texGear)
-		surface.SetDrawColor(color_black_alpha120)
-		surface.DrawTexturedRectRotated(x + geardistance, y, midarea + 2, midarea + 2, 0)
-
-		local duration = 1
-		if self.CoolDown then
-			duration = self.CoolDown * (self.Owner:GetSkill() == SKILL_MECHANICALMASTERY and 0.5 or 1)
-		else
-			duration = self:SequenceDuration()
-		end
-
-		local baserotation = (1 - (self:GetReloadEnd() - CurTime()) / duration) * 360
-		for i=0, 4 do
-			local rotation = baserotation - i * 5
-			if rotation >= 0 then
-				local radrotation = math.rad(rotation)
-				surface.SetDrawColor(255, 177, 0, 220 - i * 50)
-				surface.DrawTexturedRectRotated(x + math.cos(radrotation) * geardistance, y + math.sin(radrotation) * geardistance, midarea + 2, midarea + 2, rotation * -2)
-			end
-		end
-	elseif self.Primary.Ammo ~= "none" and self:Clip1() == 0 then
-		surface.SetTexture(texGear)
-		surface.SetDrawColor(255, 0, 0, 220)
-		surface.DrawTexturedRectRotated(x + midarea * 2 + length + 8, y, midarea, midarea, UnPredictedCurTime() * 180)
-	end
+function SWEP:OnRestore()
+	self.NextSecondaryAttack = 0
 end

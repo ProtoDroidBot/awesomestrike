@@ -10,94 +10,71 @@ function ENT:Initialize()
 	self:SetCollisionGroup(COLLISION_GROUP_WORLD)
 	self:SetUseType(SIMPLE_USE)
 
-	self:SetBombTime(CurTime() + 45)
-	self:SetDTFloat(2, 0)
+	self.Death = CurTime() + 45
+	self.Defuser = NULL
+	self.DefusePercent = 0
+
+	GAMEMODE.BOMBENTITY = self
 end
 
 util.PrecacheSound("weapons/c4/c4_disarm.wav")
-function ENT:UseTarget(pl)
-	if pl:Team() == TEAM_CT and not self:GetUsePlayer():IsValid() and pl:GetUseTarget() == self and not pl:GetStateTable().NoDefusing then
-		self:SetUseStart(CurTime())
-		self:SetUsePlayer(pl)
-		self:SetDefuserAvoidPlayers(false)
+function ENT:Use(pl)
+	if pl:Team() == TEAM_CT and not (self.Defuser:IsPlayer() and self.Defuser:Alive()) and pl:TraceLine(64).Entity == self then
+		self.Defuser = pl
+		self.DefusePercent = 0.0001
 		self:EmitSound("weapons/c4/c4_disarm.wav")
-		pl.LastDefuseAttempt = CurTime()
-	end
-end
-
-function ENT:SetDefuserAvoidPlayers(avoid)
-	local pl = self:GetUsePlayer()
-	if pl:IsValid() and pl:IsPlayer() then pl:SetAvoidPlayers(avoid) end
-end
-
-function ENT:Explode()
-	if self.Exploded then return end
-	self.Exploded = true
-
-	local Position = self:GetPos() + self:GetUp() * 32
-
-	self:Fire("kill", "", 0.05)
-
-	local effect = EffectData()
-		effect:SetOrigin(Position)
-	util.Effect("bomb_explode", effect)
-
-	gamemode.Call("EndRound", TEAM_T)
-
-	util.ScreenShake(Position, 64, 1024, 6, 8192)
-
-	for _, ent in pairs(ents.FindInSphere(Position, 1024)) do
-		if ent:IsValid() and ent:IsPlayer() then
-			ent:ClearLastAttacker()
-			ent:TakeSpecialDamage(200, DMG_DISSOLVE, self, self)
-		end
-	end
-
-	util.BlastDamage(self, self, Position, 1024, 600)
-
-	self:SetDefuserAvoidPlayers(true)
-
-	for _, ent in pairs(ents.FindByClass("func_bomb_target")) do
-		for _, e in pairs(ents.FindInBox(ent:WorldSpaceAABB())) do
-			if e == self then
-				ent:FireOutput("bombexplode", self, self, 0)
-				return
-			end
-		end
+		self:SetNetworkedEntity("defuser", pl)
 	end
 end
 
 function ENT:Think()
 	local ct = CurTime()
-	if self:GetBombTime() <= ct and self:GetUseStart() == 0 then
-		self:Explode()
-		return
-	end
+	if self.Death <= ct then
+		GAMEMODE:EndRound(TEAM_T)
 
-	if self:GetUseStart() == 0 then return end
+		local Position = self:GetPos() + self:GetUp() * 32
 
-	local pl = self:GetUsePlayer()
-	if pl:IsValid() and pl:Alive() and pl:GetUseTarget() == self and pl:KeyDown(IN_USE) and not pl:GetStateTable().NoDefusing then
-		if 1 <= self:GetUsePercent() and not self.Defused then
-			self.Defused = true
+		self:EmitSound("weapons/c4/c4_exp_deb2.wav")
+		util.ScreenShake(Position, 64, 128, 3, 8192)
+		util.BlastDamage(self, self, Position, 1200, 600)
 
-			self:SetDefuserAvoidPlayers(true)
-
-			GAMEMODE:AddNotice(pl:Name().." has defused the bomb!~sradio/bombdef.wav")
-
-			GAMEMODE:EndRound(TEAM_CT, true)
-
-			self:Remove()
-		else
-			self:NextThink(ct)
-			return true
+		for _,ent in pairs(ents.FindInSphere(Position, 1200)) do
+			if ent:IsPlayer() and ent:Alive() then
+				ent.LastAttacker = NULL
+				ent:TakeDamage(200, self)
+			end
 		end
-	else
-		self:SetDefuserAvoidPlayers(true)
-		self:SetDTFloat(2, self:GetDTFloat(2) + (CurTime() - self:GetUseStart()) / self.UseDuration)
-		self:SetUseStart(0)
-		self:SetUsePlayer(NULL)
+
+		local effect = EffectData()
+			effect:SetOrigin(Position)
+		util.Effect("bomb_explode", effect)
+
+		self:Remove()
+	elseif 0 < self.DefusePercent then
+		if not (self.Defuser:IsPlayer() and self.Defuser:Alive() and self.Defuser:TraceLine(64).Entity == self and self.Defuser:KeyDown(IN_USE)) then
+			self.Defuser = NULL
+			self.DefusePercent = 0
+			self:SetNetworkedEntity("defuser", NULL)
+		else
+			self.DefusePercent = self.DefusePercent + FrameTime() * 13
+
+			if 100 <= self.DefusePercent and not self.Defused then
+				self.Defused = true
+				for _, pl in pairs(player.GetAll()) do
+					pl:PrintMessage(HUD_PRINTCENTER, self.Defuser:Name().." has defused the bomb!")
+					pl:SendLua("surface.PlaySound(\"radio/bombdef.wav\")")
+				end
+				GAMEMODE:EndRound(TEAM_CT, true)
+				self:Remove()
+			else
+				self:NextThink(ct)
+				return true
+			end
+		end
 	end
+end
+
+function ENT:KeyValue(key, value)
 end
 
 function ENT:UpdateTransmitState()

@@ -1,37 +1,23 @@
 include("shared.lua")
 
-util.PrecacheSound("thrusters/Rocket04.wav")
-
 function ENT:Initialize()
-	self:SetModelScale(2.5, 0)
-	self.AmbientSound = CreateSound(self, "thrusters/Rocket04.wav")
-	self:PlayAmbientSound()
+	self:DrawShadow(false)
+	self:SetRenderBounds(Vector(-60, -60, -60), Vector(60, 60, 60))
 
-	self.BaseClass.Initialize(self)
-end
-
-function ENT:PlayAmbientSound()
-	self.AmbientSound:PlayEx(0.7, 100 + math.sin(CurTime()))
-end
-
-function ENT:Think()
-	self:PlayAmbientSound()
-
-	self.BaseClass.Think(self)
+	self:GetOwner().AwesomeBullet = self
 end
 
 function ENT:OnRemove()
-	self.AmbientSound:Stop()
-
-	self.BaseClass.OnRemove(self)
+	local owner = self:GetOwner()
+	if owner.AwesomeBullet == self then
+		owner.AwesomeBullet = nil
+	end
 end
 
 function ENT:Draw()
-	self:SetupAngles(self:GetVelocity())
-
+	local vel = self:GetVelocity()
+	if 10 < vel:Length() then
+		self:SetAngles(vel:Angle())
+	end
 	self:DrawModel()
-
-	self:DoColors()
-	self:DrawGlow()
-	self:EmitParticles()
 end

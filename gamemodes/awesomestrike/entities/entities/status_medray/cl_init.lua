@@ -11,6 +11,9 @@ function ENT:Initialize()
 	self.AmbientSound = CreateSound(self, "weapons/physcannon/superphys_hold_loop.wav")
 
 	self.Rotation = math.Rand(0, 360)
+
+	self.Emitter = ParticleEmitter(self:GetPos())
+	self.Emitter:SetNearClip(20, 32)
 end
 
 function ENT:Think()
@@ -18,13 +21,15 @@ function ENT:Think()
 
 	local owner = self:GetOwner()
 	if owner:IsValid() then
-		local hitpos = owner:TraceHull(1024, MASK_SHOT, 2).HitPos
+		local hitpos = owner:TraceLine(2048, MASK_SHOT).HitPos
 		self:SetRenderBoundsWS(owner:GetShootPos(), hitpos, Vector(64, 64, 64))
+		self.Emitter:SetPos(hitpos)
 	end
 end
 
 function ENT:OnRemove()
 	self.AmbientSound:Stop()
+	self.Emitter:Finish()
 	self:GetOwner().MedRay = nil
 end
 
@@ -35,36 +40,34 @@ function ENT:DrawTranslucent()
 	local owner = self:GetOwner()
 	if not owner:IsValid() then return end
 
-	local tr = owner:TraceHull(1024, MASK_SHOT, 16)
+	local tr = owner:TraceLine(2048, MASK_SHOT)
+	local hitpos = tr.HitPos
 	local ent = tr.Entity
-	local entishealable = ent and ent:IsPlayer() and ent:Alive() and ent:Team() == owner:Team()
-	if not entishealable then
-		tr = owner:TraceLine(1024, MASK_SHOT)
-	end
-	local hitpos = entishealable and ent:LocalToWorld(ent:OBBCenter()) or tr.HitPos
 
 	local startpos
-	local wep = owner:GetActiveWeapon()
-	if wep:IsValid() then
-		local attach
-		if owner == MySelf and not NOX_VIEW then
-			attach = owner:GetViewModel():GetAttachment(1)
-		else
-			attach = wep:GetAttachment(1)
+	--if MySelf == owner then
+		local wep = owner:GetActiveWeapon()
+		if wep:IsValid() then
+			local attach
+			if owner == MySelf and not NOX_VIEW then
+				attach = owner:GetViewModel():GetAttachment(1)
+			else
+				attach = wep:GetAttachment(1)
+			end
+			if attach then
+				startpos = attach.Pos
+			end
 		end
-		if attach then
-			startpos = attach.Pos
-		end
-	end
+	--end	
 
 	startpos = startpos or owner:GetShootPos()
-	local eyeangles = entishealable and (hitpos - startpos):Angle() or owner:EyeAngles()
 
 	local col = team.GetColor(owner:Team())
 
 	self.Rotation = self.Rotation - FrameTime() * 180
 	if self.Rotation < 0 then self.Rotation = self.Rotation + 360 end
 
+	local eyeangles = owner:EyeAngles()
 	eyeangles:RotateAroundAxis(eyeangles:Forward(), self.Rotation)
 
 	local mul = 4
@@ -81,13 +84,11 @@ function ENT:DrawTranslucent()
 	render.SetMaterial(matMainBeam)
 	render.DrawBeam(startpos, hitpos, 40, 1, 0, col)
 	render.SetMaterial(matGlow)
-	render.DrawSprite(hitpos, math.sin(CurTime() * 10) * 32 + 48, math.cos(CurTime() * 10) * 32 + 48, col)
+	render.DrawSprite(hitpos, math.sin(RealTime() * 10) * 32 + 48, math.cos(RealTime() * 10) * 32 + 48, col)
 
-	local emitter = ParticleEmitter(hitpos)
-	emitter:SetNearClip(20, 32)
-
-	local particle = emitter:Add("sprites/glow04_noz", hitpos)
-	particle:SetVelocity(tr.Normal * -128 + VectorRand():GetNormalized() * 32)
+	self.Emitter:SetPos(hitpos)
+	local particle = self.Emitter:Add("sprites/glow04_noz", hitpos)
+	particle:SetVelocity(tr.Normal * -128 + VectorRand():Normalize() * 32)
 	particle:SetDieTime(0.5)
 	particle:SetStartSize(20)
 	particle:SetEndSize(0)
@@ -97,6 +98,4 @@ function ENT:DrawTranslucent()
 	particle:SetColor(30, 255, 30)
 	particle:SetRoll(math.Rand(0, 360))
 	particle:SetRollDelta(math.Rand(-10, 10))
-
-	emitter:Finish()
 end

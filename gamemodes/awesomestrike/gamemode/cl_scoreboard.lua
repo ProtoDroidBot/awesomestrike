@@ -13,15 +13,14 @@ end
 
 local Scroll = 0
 
---Temp fix for no NDB found issue
---[[local function profileopen(self, mc)
+local function profileopen(self, mc)
 	if mc == MOUSE_LEFT then
 		local player = self.Player
 		if player:IsValid() then
 			NDB.GeneralPlayerMenu(player, true)
 		end
 	end
-end]]--
+end
 
 local colbox = Color(40, 40, 40, 255)
 local function emptypaint(self)
@@ -42,15 +41,15 @@ function GM:ScoreboardRefresh(pScoreBoard)
 	list:EnableVerticalScrollbar()
 	list:EnableHorizontal(false)
 	list:SetSpacing(2)
-	timer.SimpleEx(0, list.VBar.SetScroll, list.VBar, Scroll)
+	timer.Simple(0, list.VBar.SetScroll, list.VBar, Scroll)
 	pScoreBoard.PanelList = list
 	table.insert(pScoreBoard.Elements, list)
 
 	local Label = vgui.Create("DLabel", pScoreBoard)
 	Label:SetText("Score")
 	Label:SetTextColor(color_white)
-	Label:SetFont("DefaultFontSmall")
-	surface.SetFont("DefaultFontSmall")
+	Label:SetFont("DefaultSmall")
+	surface.SetFont("DefaultSmall")
 	local tw, th = surface.GetTextSize("Score")
 	Label:SetPos(panw * 0.6 - tw * 0.5 + 8, 58 - th)
 	Label:SetMouseInputEnabled(false)
@@ -61,8 +60,8 @@ function GM:ScoreboardRefresh(pScoreBoard)
 	local Label = vgui.Create("DLabel", pScoreBoard)
 	Label:SetText("Deaths")
 	Label:SetTextColor(color_white)
-	Label:SetFont("DefaultFontSmall")
-	surface.SetFont("DefaultFontSmall")
+	Label:SetFont("DefaultSmall")
+	surface.SetFont("DefaultSmall")
 	local tw, th = surface.GetTextSize("Deaths")
 	Label:SetPos(panw * 0.75 - tw * 0.5 + 8, 58 - th)
 	Label:SetMouseInputEnabled(false)
@@ -73,8 +72,8 @@ function GM:ScoreboardRefresh(pScoreBoard)
 	local Label = vgui.Create("DLabel", pScoreBoard)
 	Label:SetText("Ping")
 	Label:SetTextColor(color_white)
-	Label:SetFont("DefaultFontSmall")
-	surface.SetFont("DefaultFontSmall")
+	Label:SetFont("DefaultSmall")
+	surface.SetFont("DefaultSmall")
 	local tw, th = surface.GetTextSize("Ping")
 	Label:SetPos(panw * 0.9 + 8 - tw * 0.5, 58 - th)
 	Label:SetMouseInputEnabled(false)
@@ -95,16 +94,17 @@ function GM:ScoreboardRefresh(pScoreBoard)
 		local Panel = vgui.Create("Panel", list)
 		Panel:SetSize(panw, 40)
 		Panel:SetMouseInputEnabled(true)
+		--Panel:SetBGColorEx(120, 120, 120, 255)
 		Panel.Player = pl
 		Panel.Paint = emtptypaint
-		--Temp fix for no NDB found issue
-		--Panel.OnMousePressed = profileopen
+		Panel.OnMousePressed = profileopen
 
 		if pl:IsValid() then
 			local avatar = vgui.Create("AvatarImage", Panel)
 			avatar:SetPos(4, 4)
 			avatar:SetSize(32, 32)
 			avatar:SetPlayer(pl)
+			avatar:SetTooltip("Click here to view "..pl:Name().." Steam Community profile.")
 		end
 
 		local Label = vgui.Create("DLabel", Panel)
@@ -116,8 +116,8 @@ function GM:ScoreboardRefresh(pScoreBoard)
 			Label:SetTextColor(team.GetColor(pl:Team()))
 		end
 		Label:SetText(txt)
-		Label:SetFont("DefaultFontBold")
-		surface.SetFont("DefaultFontBold")
+		Label:SetFont("DefaultBold")
+		surface.SetFont("DefaultBold")
 		local tw, th = surface.GetTextSize(txt)
 		Label:SetPos(48, 20 - th * 0.5)
 		Label:SetMouseInputEnabled(false)
@@ -128,8 +128,8 @@ function GM:ScoreboardRefresh(pScoreBoard)
 		local Label = vgui.Create("DLabel", Panel)
 		Label:SetText(txt)
 		Label:SetTextColor(color_white)
-		Label:SetFont("DefaultFontSmall")
-		surface.SetFont("DefaultFontSmall")
+		Label:SetFont("DefaultSmall")
+		surface.SetFont("DefaultSmall")
 		local tw, th = surface.GetTextSize(txt)
 		Label:SetSize(tw, th)
 		Label:SetPos(panw * 0.6 - tw * 0.5, 20 - th * 0.5)
@@ -140,8 +140,8 @@ function GM:ScoreboardRefresh(pScoreBoard)
 		local Label = vgui.Create("DLabel", Panel)
 		Label:SetText(txt)
 		Label:SetTextColor(color_white)
-		Label:SetFont("DefaultFontSmall")
-		surface.SetFont("DefaultFontSmall")
+		Label:SetFont("DefaultSmall")
+		surface.SetFont("DefaultSmall")
 		local tw, th = surface.GetTextSize(txt)
 		Label:SetSize(tw, th)
 		Label:SetPos(panw * 0.75 - tw * 0.5, 20 - th * 0.5)
@@ -152,8 +152,8 @@ function GM:ScoreboardRefresh(pScoreBoard)
 		local Label = vgui.Create("DLabel", Panel)
 		Label:SetText(txt)
 		Label:SetTextColor(color_white)
-		Label:SetFont("DefaultFontSmall")
-		surface.SetFont("DefaultFontSmall")
+		Label:SetFont("DefaultSmall")
+		surface.SetFont("DefaultSmall")
 		local tw, th = surface.GetTextSize(txt)
 		Label:SetSize(tw, th)
 		Label:SetPos(panw * 0.9 - tw * 0.5, 20 - th * 0.5)
@@ -240,6 +240,31 @@ function GM:CreateScoreboard()
 	self:ScoreboardRefresh(pScoreBoardLeft)
 	self:ScoreboardRefresh(pScoreBoardRight)
 	self:ScoreboardRefresh(pScoreBoardSpectator)
+
+	local miscPanel = vgui.Create("DFrame")
+	miscPanel:SetPos(w * 0.5 - 250, h * 0.7)
+	miscPanel:SetSize(500, 100)
+	miscPanel:SetTitle("NoX Stuff")
+	miscPanel.btnClose:SetVisible(false)
+	pMiscPanel = miscPanel
+
+	local button = vgui.Create("DButton", miscPanel)
+	button:SetPos(16, 39)
+	button:SetSize(72, 22)
+	button:SetText("Donations")
+	button.DoClick = function(btn) OpenDonationHTML() end
+
+	local button = vgui.Create("DButton", miscPanel)
+	button:SetPos(216, 39)
+	button:SetSize(72, 22)
+	button:SetText("Server Portal")
+	button.DoClick = function(btn) RunConsoleCommand("serverportal") end
+
+	local button = vgui.Create("DButton", miscPanel)
+	button:SetPos(412, 39)
+	button:SetSize(72, 22)
+	button:SetText("Global Store")
+	button.DoClick = function(btn) RunConsoleCommand("shopmenu") end
 end
 
 function GM:ScoreboardShow()
@@ -253,6 +278,7 @@ function GM:ScoreboardShow()
 	pScoreBoardLeft:SetVisible(true)
 	pScoreBoardRight:SetVisible(true)
 	pScoreBoardSpectator:SetVisible(true)
+	pMiscPanel:SetVisible(true)
 end
 
 function GM:ScoreboardHide()
@@ -268,6 +294,8 @@ function GM:ScoreboardHide()
 	pScoreBoardRight = nil
 	pScoreBoardSpectator:Remove()
 	pScoreBoardSpectator = nil
+	pMiscPanel:Remove()
+	pMiscPanel = nil
 end
 
 function GM:HUDDrawScoreBoard()

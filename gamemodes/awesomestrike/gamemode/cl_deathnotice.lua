@@ -1,126 +1,176 @@
-usermessage.Hook("AwesomeStrikePlayerKilled", function(um)
-	local victim = um:ReadEntity()
-	local attacker = um:ReadEntity()
-	local maintype = um:ReadShort()
-	local subtypes = um:ReadLong()
+local Color_Icon = Color(255, 50, 0, 255) 
 
-	if attacker ~= victim then
-		if victim == MySelf then
-			gamemode.Call("Died", attacker)
-		elseif attacker == MySelf then
-			GAMEMODE:AddSubTypesToComboArea(GAMEMODE:BitsToKillAction2(subtypes))
-		end
-	end
+killicon.AddFont("prop_physics", "HL2MPTypeDeath", "9", Color_Icon)
+killicon.AddFont("weapon_smg1", "HL2MPTypeDeath", "/", Color_Icon)
+killicon.AddFont("weapon_357", "HL2MPTypeDeath", ".", Color_Icon)
+killicon.AddFont("weapon_ar2", "HL2MPTypeDeath", "2", Color_Icon)
+killicon.AddFont("crossbow_bolt", "HL2MPTypeDeath", "1", Color_Icon)
+killicon.AddFont("weapon_shotgun", "HL2MPTypeDeath", "0", Color_Icon)
+killicon.AddFont("rpg_missile", "HL2MPTypeDeath", "3", Color_Icon)
+killicon.AddFont("npc_grenade_frag", "HL2MPTypeDeath", "4", Color_Icon)
+killicon.AddFont("weapon_pistol", "HL2MPTypeDeath", "-", Color_Icon)
+killicon.AddFont("prop_combine_ball", "HL2MPTypeDeath", "8", Color_Icon)
+killicon.AddFont("grenade_ar2", "HL2MPTypeDeath", "7", Color_Icon)
+killicon.AddFont("weapon_stunstick", "HL2MPTypeDeath", "!", Color_Icon)
+killicon.AddFont("weapon_slam", "HL2MPTypeDeath", "*", Color_Icon)
+killicon.AddFont("weapon_crowbar", "HL2MPTypeDeath", "6", Color_Icon)
 
-	if victim:IsValid() then
-		local attackerisplayer = attacker:IsValid() and attacker:IsPlayer()
-		gamemode.Call("AddDeathNotice",
-		attacker == victim and "themself" or victim:Name(), attacker == victim and 0 or victim:Team(),
-		attackerisplayer and attacker:Name() or attacker:IsValid() and attacker:GetClass() or "The World", attackerisplayer and attacker:Team() or 0,
-		string.upper(GAMEMODE:KillMessageMainTypeToString(maintype)), GAMEMODE:BitsToKillAction2(subtypes),
-		attacker == MySelf or victim == MySelf)
+killicon.AddFont("headshot", "CSKillIcons", "D", Color_Icon)
 
-		if attacker == MySelf and victim ~= MySelf then
-			surface.PlaySound("buttons/lightswitch2.wav")
+killicon.AddFont("weapon_as_deagle", "CSKillIcons", "f", Color_Icon)
+killicon.AddFont("weapon_as_dinkygun", "CSKillIcons", "a", Color_Icon)
+killicon.AddFont("weapon_as_knife", "CSKillIcons", "j", Color_Icon)
+killicon.AddFont("weapon_as_crossfire", "HL2MPTypeDeath", ".", Color_Icon)
+killicon.AddFont("weapon_as_uzi", "CSKillIcons", "l", Color_Icon)
+killicon.AddFont("weapon_zs_m4", "CSKillIcons", "w", Color_Icon)
+killicon.AddFont("weapon_zs_ak47", "CSKillIcons", "b", Color_Icon)
+killicon.AddFont("weapon_zs_awesomerifle", "CSKillIcons", "r", Color_Icon)
+killicon.AddFont("weapon_zs_minigun", "CSKillIcons", "z", Color_Icon)
+
+usermessage.Hook("PlayerKilledByPlayer", function(message)
+	local victim = message:ReadEntity()
+	local inflictor = message:ReadString()
+	local attacker = message:ReadEntity()
+	local headshot = message:ReadBool()
+
+	if victim:IsValid() then 
+		if attacker:IsValid() then
+			if victim == MySelf then
+				GAMEMODE:Died(attacker)
+			end
+			GAMEMODE:AddDeathNotice(attacker:Name(), attacker:Team(), inflictor, victim:Name(), victim:Team(), headshot)
+			print(attacker:Name().." killed "..victim:Name().." with "..inflictor)
+		elseif victim == MySelf then
+			GAMEMODE:Died()
 		end
 	end
 end)
 
-usermessage.Hook("AwesomeStrikePlayerRevived", function(um)
-	local victim = um:ReadEntity()
-	local attacker = um:ReadEntity()
+usermessage.Hook("PlayerKilledSelf", function(message)
+	local victim = message:ReadEntity()
+	local inflictor = message:ReadString()
 
 	if victim:IsValid() then
-		gamemode.Call("AddDeathNotice",
-		victim:Name(), victim:Team(),
-		attacker:Name(), attacker:Team(),
-		"REVIVED", {0},
-		attacker == MySelf or victim == MySelf)
-
-		if attacker == MySelf and victim ~= MySelf then
-			surface.PlaySound("buttons/lightswitch2.wav")
+		if victim == MySelf then
+			GAMEMODE:Died()
 		end
+		GAMEMODE:AddDeathNotice(nil, 0, "suicide", victim:Name(), victim:Team(), inflictor)
+		print(victim:Name().." killed themselves with "..inflictor)
 	end
+end)
+
+usermessage.Hook("PlayerKilled", function(message)
+	local victim = message:ReadEntity()
+	local inflictor = message:ReadString()
+	local attacker = "#" .. message:ReadString()
+
+	if victim:IsValid() then
+		if victim == MySelf then
+			GAMEMODE:Died()
+		end
+		GAMEMODE:AddDeathNotice(attacker, -1, inflictor, victim:Name(), victim:Team())
+		print(victim:Name().." was killed by "..inflictor)
+	end
+end)
+
+usermessage.Hook("PlayerKilledNPC", function(message)
+	local victim = "#"..message:ReadString()
+	local inflictor = message:ReadString()
+	local attacker = message:ReadEntity()
+
+	if attacker:IsValid() then
+		GAMEMODE:AddDeathNotice(attacker:Name(), attacker:Team(), inflictor, victim, -1)
+	end
+end)
+
+usermessage.Hook("NPCKilledNPC", function(message)
+	local victim = "#"..message:ReadString()
+	local inflictor = message:ReadString()
+	local attacker = "#"..message:ReadString()
+
+	GAMEMODE:AddDeathNotice(attacker, -1, inflictor, victim, -1)
 end)
 
 local Deaths = {}
 
-function GM:AddDeathNotice(victimstring, victimteam, attackerstring, attackerteam, maintype, subtypes, highlighted)
-	local death = {}
-	death.victim = " "..victimstring.." "
-	death.attacker = attackerstring.." "
-	death.starttime = CurTime()
-	death.endtime = death.starttime + 8
-	death.maintype = " "..maintype.." "
-	death.highlighted = highlighted
-	death.subtypes = subtypes
-	death.subtypewidth = 0
-	if subtypes then
-		surface.SetFont("ass_smaller")
-		for _, subtype in pairs(subtypes) do
-			local str = self.KillMessageSubTypeStrings[subtype]
-			if str then
-				str = "("..str.."!)"
-				local texw, texh = surface.GetTextSize(str)
-				death.subtypewidth = math.max(death.subtypewidth, texw)
-			end
-		end
+function GM:AddDeathNotice(Attacker, team1, Inflictor, Victim, team2, headshot)
+	local Death = {}
+	Death.victim = Victim
+	Death.attacker = Attacker
+	Death.time = CurTime()
+
+	Death.left = Attacker
+	Death.right = Victim
+	Death.icon = Inflictor
+
+	if team1 == -1 then Death.color1 = table.Copy(NPC_Color)
+	else Death.color1 = table.Copy(team.GetColor(team1)) end
+
+	if team2 == -1 then Death.color2 = table.Copy(NPC_Color)
+	else Death.color2 = table.Copy(team.GetColor(team2)) end
+
+	if Death.left == Death.right then
+		Death.left = nil
+		Death.icon = "suicide"
 	end
-	death.victimcolor = table.Copy(team.GetColor(victimteam) or color_white)
-	death.attackercolor = table.Copy(team.GetColor(attackerteam) or color_white)
-	table.insert(Deaths, death)
+
+	Death.headshot = headshot
+
+	table.insert(Deaths, Death)
 end
 
-local function DrawText(text, font, x, y, col)
-	surface.SetFont(font)
-	local texw, texh = surface.GetTextSize(text)
-	draw.SimpleText(text, font, x, y, col, TEXT_ALIGN_RIGHT)
-	x = x - texw
-	return x
-end
-local colGeneric = Color(255, 255, 255, 255)
-local texGrad = surface.GetTextureID("gui/gradient")
-local function DrawDeath(x, y, death)
-	local fadein = math.Clamp(math.min(death.endtime - CurTime(), CurTime() - death.starttime) * 2, 0, 1)
-	local alpha = 200 * fadein
-	death.victimcolor.a = alpha
-	death.attackercolor.a = alpha
-	colGeneric.a = alpha
+local function DrawDeath(x, y, death, hud_deathnotice_time)
+	local tw, th = killicon.GetSize(death.icon)
+	local texw, texh = surface.GetTextSize(death.right)
 
-	x = x + (1 - fadein) * 512
+	x = w - texw - tw - 16
 
-	surface.SetTexture(texGrad)
-	if death.highlighted then
-		surface.SetDrawColor(120, 120, 120, alpha)
+	local fadeout = death.time + hud_deathnotice_time - CurTime()
+
+	local alpha = math.Clamp(fadeout * 255, 0, 255)
+	death.color1.a = alpha
+	death.color2.a = alpha
+
+	if death.headshot then
+		killicon.Draw(x + tw * 0.5, y, death.icon, alpha)
+		killicon.Draw(x - tw * 0.5, y, "headshot", alpha)
 	else
-		surface.SetDrawColor(5, 5, 5, alpha * 0.5)
+		killicon.Draw(x, y, death.icon, alpha)
 	end
-	surface.DrawTexturedRectRotated((x - 512) + 256, y + 14, 512, 28, 90 + fadein * 90)
 
-	y = y + 2
-	if death.subtypes and #death.subtypes > 0 then
-		local str = GAMEMODE.KillMessageSubTypeStrings[ death.subtypes[math.min(#death.subtypes, math.floor(CurTime() % #death.subtypes + 1))] ]
-		if str then
-			str = "("..str.."!)"
-			DrawText(str, "ass_smaller", x, y + 4, colGeneric)
-		end
-		x = x - death.subtypewidth
+	if death.left then
+		draw.DrawText(death.left, "cstrike24", x - tw * 0.6 - 16, y, death.color1, TEXT_ALIGN_RIGHT)
 	end
-	x = DrawText(death.victim, "ass_small", x, y, death.victimcolor)
-	x = DrawText(death.maintype, "ass_smaller", x, y + 4, colGeneric)
-	DrawText(death.attacker, "ass_small", x, y, death.attackercolor)
 
-	return y + 26
+	draw.DrawText(death.right, "cstrike24", x + tw * 0.6 + 16, y, death.color2, TEXT_ALIGN_LEFT)
+
+	return y + th * 0.70
 end
 
+local __hud_deathnotice_time = CreateConVar("hud_deathnotice_time", "6", FCVAR_REPLICATED)
 function GM:DrawDeathNotice(x, y)
-	if #Deaths == 0 then return end
+	local hud_deathnotice_time = __hud_deathnotice_time:GetFloat()
+
+	x = x * w
+	y = y * h
+
+	surface.SetFont("cstrike24")
 
 	local done = true
-	for k, death in ipairs(Deaths) do
-		if CurTime() < death.endtime then
+	for k, Death in pairs(Deaths) do
+		if Death.time + hud_deathnotice_time > CurTime() then
 			done = false
-			y = DrawDeath(x, y, death)
+
+			if Death.lerp then
+				x = x * 0.3 + Death.lerp.x * 0.7
+				y = y * 0.3 + Death.lerp.y * 0.7
+			end
+
+			Death.lerp = Death.lerp or {}
+			Death.lerp.x = x
+			Death.lerp.y = y
+
+			y = DrawDeath(x, y, Death, hud_deathnotice_time)
 		end
 	end
 

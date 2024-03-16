@@ -8,15 +8,24 @@ function ENT:Initialize()
 
 	self.AmbientSound = CreateSound(self, "items/suitcharge1.wav")
 
+	self.Emitter = ParticleEmitter(self:GetPos())
+	self.Emitter:SetNearClip(20, 32)
+
 	self.DieTime = CurTime() + 3
 end
 
 function ENT:Think()
 	self.AmbientSound:PlayEx(0.75, math.min(255, 255 - (self.DieTime - CurTime()) * 80))
+
+	local owner = self:GetOwner()
+	if owner:IsValid() then
+		self.Emitter:SetPos(owner:EyePos())
+	end
 end
 
 function ENT:OnRemove()
 	self.AmbientSound:Stop()
+	self.Emitter:Finish()
 	self:GetOwner().MedRayReload = nil
 end
 
@@ -38,18 +47,20 @@ function ENT:DrawTranslucent()
 	if not owner:IsValid() then return end
 
 	local startpos
-	local wep = owner:GetActiveWeapon()
-	if wep:IsValid() then
-		local attach
-		if owner == MySelf and not NOX_VIEW then
-			attach = owner:GetViewModel():GetAttachment(1)
-		else
-			attach = wep:GetAttachment(1)
+	--if MySelf == owner then
+		local wep = owner:GetActiveWeapon()
+		if wep:IsValid() then
+			local attach
+			if owner == MySelf and not NOX_VIEW then
+				attach = owner:GetViewModel():GetAttachment(1)
+			else
+				attach = wep:GetAttachment(1)
+			end
+			if attach then
+				startpos = attach.Pos
+			end
 		end
-		if attach then
-			startpos = attach.Pos
-		end
-	end	
+	--end	
 
 	startpos = startpos or owner:GetShootPos()
 
@@ -58,10 +69,8 @@ function ENT:DrawTranslucent()
 
 	local up = eyeangles:Up()
 
-	local emitter = ParticleEmitter(startpos)
-	emitter:SetNearClip(20, 32)
-
-	local particle = emitter:Add("sprites/glow04_noz", startpos + up * 100)
+	self.Emitter:SetPos(startpos)
+	local particle = self.Emitter:Add("sprites/glow04_noz", startpos + up * 100)
 	particle.BaseVelocity = up * -200
 	particle.Owner = owner
 	particle:SetVelocity(owner:GetVelocity() + particle.BaseVelocity)
@@ -74,6 +83,4 @@ function ENT:DrawTranslucent()
 	particle:SetEndAlpha(0)
 	particle:SetThinkFunction(partthink)
 	particle:SetNextThink(CurTime() + 0.025)
-
-	emitter:Finish()
 end
